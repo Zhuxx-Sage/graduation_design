@@ -1,11 +1,15 @@
 #!/usr/bin/env python 
 # -*- coding:utf-8 -*-
 
-from graduation_design.version_1.env_pg import *
-from graduation_design.others.env_no_tolls import *
-from graduation_design.version_1.utils import Graph, Edge
-from graduation_design.version_1.Agents import *
+from version_1.env_pg import *
+from version_1.utils import Graph, Edge
+from version_1.Agents import *
 from matplotlib import pyplot as plt
+from tensorboardX import SummaryWriter
+from collections import deque
+
+writer = SummaryWriter('log')
+
 
 road_network = \
     [[0, Edge(0,0,1), Edge(1,0,2), Edge(2,0,3)],
@@ -28,16 +32,17 @@ def train_REINFORCE_NN():
     action_dim = env.action_vector
 
     agent_config = {}
-    agent_config['state_dim'] = len(env.state_matrix) * len(env.state_matrix[0])
-    agent_config['action_dim'] = len(env.action_vector)
+    agent_config['num_state'] = env.edges_num * env.zones_num  # 40个输入
+    agent_config['num_action'] = len(env.action_vector)
     agent_config['lower_bound_action'] = lower_bound_action
     agent_config['upper_bound_action'] = upper_bound_action
-    agent_config['alpha_policy'] = 0.5e-10
-    agent_config['structure_policy'] = [36, 18]
+    agent_config['alpha_policy'] = 1e-10
 
     agent = REINFORCE_NN(agent_config)
-    agent.approximator.load_state_dict(T.load('REINFORCE_NN_parameters.pkl'))
-    Iter = 1000
+
+    # 加载模型
+    agent.approximator.load_state_dict(T.load('REINFORCE_NN_parameters1.pkl'))
+    Iter = 30000
     G_log = []
     G_mean = []
 
@@ -48,33 +53,30 @@ def train_REINFORCE_NN():
         done = False
         s = env.reset()
         G = 0
-        states = []
-        actions = []
-        rewards = []
+        memory = deque()
 
         while not done:
             a = agent.get_actions(s.reshape(1, -1))  # 转换成一行
-            # print("a is " + a.__str__())
             next_s, r, done, info = env.step(a)
-            # print("r is " + r.__str__())
-            states.append(s.reshape(1, -1))
-            actions.append(a)
-            rewards.append(r)
+            if done:
+                mask = 0
+            else:
+                mask = 1
+            memory.append([s.reshape(1, -1), a, r, mask])
             s = next_s
             G = G + r
-        # print("----------  epoch: " + epoch.__str__() + " end  ----------")
-        #print(rewards)
-        print(actions)
-        # print("G is " + G.__str__())
-        # G_log.append(G)
-        agent.update_paras(states, actions, rewards)
-        if (epoch + 1) % 20 == 0:
+
+        agent.train_model(memory)
+        if (epoch + 1) % 100 == 0:
             print("----------  epoch: " + (epoch + 1).__str__() + "  ----------")
-            G_log.append(G)
-            # agent.losses.append(agent.approximator_loss[0][0])
-            G_mean.append(np.mean(G_log[:]))
+            writer.add_scalar('Train/loss', agent.loss, epoch)
+            writer.add_scalar('Train/G', G, epoch)
+            # writer.add_scalar('Train/mean', np.mean(G_log[:]), epoch)
+            # G_log.append(G)
+            # G_mean.append(np.mean(G_log[:]))
             # print(G_log)
-            print("G_log.mean(): " + int(np.mean(G_log[:])).__str__())
+            # print("G_log.mean(): " + int(np.mean(G_log[:])).__str__())
+            print('Epoch {} / {}, loss:{:.4f}'.format(epoch+1, Iter, agent.loss.item()))
             # plt.plot(G_mean)
             # plt.plot(pd.DataFrame(G_log).rolling(200).mean())
             # plt.show()
@@ -83,18 +85,18 @@ def train_REINFORCE_NN():
     # print(T.load('REINFORCE_NN_parameters.pth'))
 
     # 保存模型
-    T.save(agent.approximator.state_dict(), 'REINFORCE_NN_parameters.pkl')
+    T.save(agent.approximator.state_dict(), 'REINFORCE_NN_parameters1.pkl')
 
     # 绘图
-    X = np.arange(0, Iter, 20)
-    plt.subplot(121)
-    plt.plot(X, G_log, color="blue", linewidth=1.0, linestyle='-', label="hh")
-    Y = np.arange(0, Iter, 20)
-    plt.subplot(122)
-    plt.plot(Y, G_mean, color="red", linewidth=1.0, linestyle='-', label="hh")
-    plt.show()
+    # X = np.arange(0, Iter, 50)
+    # plt.subplot(121)
+    # plt.plot(X, G_log, color="blue", linewidth=1.0, linestyle='-', label="hh")
+    # Y = np.arange(0, Iter, 50)
+    # plt.subplot(122)
+    # plt.plot(Y, G_mean, color="red", linewidth=1.0, linestyle='-', label="hh")
+    # plt.show()
 
-
+train_REINFORCE_NN()
 
 
 

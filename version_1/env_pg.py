@@ -9,7 +9,7 @@
 import numpy as np
 import random
 import math
-from graduation_design.version_1.utils import Graph, Path, Edge
+from version_1.utils import Graph, Path, Edge
 
 
 
