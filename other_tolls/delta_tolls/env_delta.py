@@ -9,7 +9,7 @@
 import numpy as np
 import random
 import math
-from version_1.utils import Graph, Path, Edge
+from other_tolls.delta_tolls.utils import Graph, Path, Edge
 
 FIXED_ROAD_LENGTH = 3  # km
 
@@ -17,19 +17,19 @@ FIXED_ROAD_LENGTH = 3  # km
 # BPR模型的参数
 
 
-class TrafficEnvironment:
+class TrafficEnvironment_DELTA:
     def __init__(self,
                  road_network: Graph,
                  min_action=0,
                  max_action=6,
                  # action_limit=6,
                  control_time=6,  # 单位小时
-                 period_time=3,  # 单位分钟
+                 period_time=10,  # 单位分钟
                  free_flow_speed=5,
                  capacity_of_road=200,
                  w_=0.5,
                  w=0.5,
-
+                 R = 1e-4,
                  ):
         self.road_network = road_network
         self.free_flow_speed = free_flow_speed  # free_flow_speed，不堵车时的travel speed
@@ -43,6 +43,7 @@ class TrafficEnvironment:
         self.w = w  # value of time
         self.A = 0.15
         self.B = 4
+        self.R = R
         self.t = 1
         self.state_matrix = None
         self.action_vector = None
@@ -52,7 +53,7 @@ class TrafficEnvironment:
 
     def reset(self):
         self.create_state_matrix()
-        self.create_action_vector()
+        # self.create_action_vector()
         self.t = 1
         return self.state_matrix
 
@@ -63,9 +64,15 @@ class TrafficEnvironment:
         self.state_matrix = np.random.randint(int(0.5 * self.capacity_of_road / 4),
                                               int(0.7 * self.capacity_of_road / 4), [self.edges_num, self.zones_num])
 
-    # 创建初始行为向量
-    def create_action_vector(self):
-        self.action_vector = np.random.randint(0, 6, self.edges_num)
+    # # 创建初始行为向量
+    # def create_action_vector(self):
+    #     self.action_vector = np.zeros(self.edges_num)
+    #     for e in self.edges:
+    #         id = e.id
+    #
+    #         self.action_vector[id] =
+
+
 
     def travel_time(self,
                     road_e: Edge,  # 此变量用来填充state_matrix的一维坐标，Edge；{id，start，end}
@@ -85,14 +92,14 @@ class TrafficEnvironment:
         sum = 0
         # destination_index = path.get_dest()
         for e in path.get_path():
-            sum += self.action_vector[0, e] + self.w * self.travel_time(self.edges[e])
+            sum += self.action_vector[e] + self.w * self.travel_time(self.edges[e])
         return sum
 
     # 某条路径的traffic demand
     def traffic_demand(self, vi, vj, one_path: Path):
         # 计算单独某条
         # single_path = math.exp(self.w_ * self.travel_cost(one_path))
-        single_path = round(np.exp((-self.w_) * self.travel_cost(one_path)), 8)
+        single_path = np.exp((-self.w_) * self.travel_cost(one_path))
 
         # 计算所有路径
         all_Paths = self.road_network.return_all_path_roads(vi, vj, path=[])
@@ -100,7 +107,7 @@ class TrafficEnvironment:
         for row in all_Paths:
             p = Path(vi, vj, row)
             # sum_all_Paths += math.exp(self.w_ * self.travel_cost(p))
-            sum_all_Paths += round(np.exp((-self.w_) * self.travel_cost(p)), 8)
+            sum_all_Paths += np.exp((-self.w_) * self.travel_cost(p))
 
         if sum_all_Paths == 0:
             resu = 0
@@ -117,7 +124,7 @@ class TrafficEnvironment:
         return int(self.state_matrix[road_e.id][vj] * self.period_time / self.travel_time(road_e))
 
     # 计算secondary demand
-    def secondery_demand(self,
+    def secondary_demand(self,
                          vi,
                          vj,
                          ):
@@ -130,8 +137,7 @@ class TrafficEnvironment:
     # 计算primary_demand
     # 每条i，j都可以这样计算
     def primary_demand(self):
-        # return int(random.randint(80, 120) * np.exp(-np.power(self.t - 18, 2) / (2 * np.power(30, 2))))
-        return int(random.randint(24,36) * np.exp(-np.power(self.t - 60, 2) / (2 * np.power(30, 2))))
+        return int(random.randint(80, 120) * np.exp(-np.power(self.t - 18, 2) / (2 * np.power(30, 2))))
 
     # 计算t时段内 进入road_e的车辆数
     def in_road(self,
@@ -141,7 +147,7 @@ class TrafficEnvironment:
         # 以edge的起点
         start = road_e.start
         primary = self.primary_demand()
-        secondary = self.secondery_demand(start, vj)
+        secondary = self.secondary_demand(start, vj)
         # 所有以road_e的起点为终点的路径
         # 从vi到vi的所有路径
         all_Paths = self.road_network.return_all_path_roads(start, vj)
@@ -154,7 +160,18 @@ class TrafficEnvironment:
             in_road_cars = 0
         return int(in_road_cars)
 
-    #
+    # 获得当前平均demand
+    def get_now_action(self):
+        self.action_vector = np.zeros(self.edges_num)
+        for e in self.edges:
+            id = e.id
+            time = self.travel_time(Edge(id, e.start, e.end))
+            tau = self.B * (time - self.free_flow_speed)
+            tau = self.R * tau + (1 - self.R) * tau
+            self.action_vector[id] = tau
+        return self.action_vector
+
+    # 状态转换
     def step(self,
              action_vector,  # 传入新的收费值
              ):

@@ -2,13 +2,8 @@
 # -*- coding:utf-8 -*-
 
 import numpy as np
-from flask import Flask, jsonify, render_template, request
-import json
-from flask_cors import CORS
-
-from version_1.env_pg import *
-from version_1.utils import Graph, Edge
-from version_1.Agents import *
+from other_tolls.No_tolls.env_no_tolls import TrafficEnvironment_NO_TOOLS
+from other_tolls.No_tolls.utils import *
 from matplotlib import pyplot as plt
 from tensorboardX import SummaryWriter
 from collections import deque
@@ -17,7 +12,7 @@ from collections import deque
 # app = Flask(__name__)
 # CORS(app, resources=r'/*')
 
-writer = SummaryWriter('log')
+writer = SummaryWriter('log_no_tolls')
 
 
 # road_network = \
@@ -40,25 +35,25 @@ road_network = \
 
 
 
-def train_REINFORCE_NN():
+def train_NO_TOLLS():
     # 环境
     gra = Graph(road_network)
-    env = TrafficEnvironment(gra)
+    env = TrafficEnvironment_NO_TOOLS(gra)
     env.reset()
-    lower_bound_action, upper_bound_action = env.low_bound_action, env.upper_bound_action
+    # lower_bound_action, upper_bound_action = env.low_bound_action, env.upper_bound_action
 
     agent_config = {}
     agent_config['num_state'] = env.edges_num * env.zones_num  # 40个输入
-    agent_config['num_action'] = len(env.action_vector)
-    agent_config['lower_bound_action'] = lower_bound_action
-    agent_config['upper_bound_action'] = upper_bound_action
-    agent_config['alpha_policy'] = 1e-10
+    # agent_config['num_action'] = len(env.action_vector)
+    # agent_config['lower_bound_action'] = lower_bound_action
+    # agent_config['upper_bound_action'] = upper_bound_action
+    # agent_config['alpha_policy'] = 1e-10
 
-    agent = REINFORCE_NN(agent_config)
+    # agent = REINFORCE_NN(agent_config)
 
     # 加载模型
     # agent.approximator.load_state_dict(T.load('REINFORCE_NN_parameters1.pkl'))
-    Iter = 50000
+    Iter = 1000
 
 
     print("----------  start training!  ----------\n")
@@ -67,30 +62,32 @@ def train_REINFORCE_NN():
         done = False
         s = env.reset()
         G = 0
-        memory = deque()
+        # memory = deque()
 
         while not done:
-            a = agent.get_actions(s.reshape(1, -1))  # 转换成一行
-            next_s, r, done, info = env.step(a)
+            # a = agent.get_actions(s.reshape(1, -1))  # 转换成一行
+            next_s, r, done, info = env.step()
             if done:
                 mask = 0
             else:
                 mask = 1
-            memory.append([s.reshape(1, -1), a, r, mask])
+            # memory.append([s.reshape(1, -1), a, r, mask])
             s = next_s
             G = G + r
+            # print(env.state_matrix)
 
-        agent.train_model(memory)
-        if (epoch + 1) % 100 == 0:
+        # agent.train_model(memory)
+        if (epoch + 1) % 10 == 0:
             print("----------  epoch: " + (epoch + 1).__str__() + "  ----------")
-            writer.add_scalar('Train/loss', agent.loss, epoch)
+            # writer.add_scalar('Train/loss', agent.loss, epoch)
+            print(G)
             writer.add_scalar('Train/G', G, epoch)
             # writer.add_scalar('Train/mean', np.mean(G_log[:]), epoch)
             # G_log.append(G)
             # G_mean.append(np.mean(G_log[:]))
             # print(G_log)
             # print("G_log.mean(): " + int(np.mean(G_log[:])).__str__())
-            print('Epoch {} / {}, loss:{:.4f}'.format(epoch+1, Iter, agent.loss.item()))
+            # print('Epoch {} / {}, loss:{:.4f}'.format(epoch+1, Iter, agent.loss.item()))
             # plt.plot(G_mean)
             # plt.plot(pd.DataFrame(G_log).rolling(200).mean())
             # plt.show()
@@ -98,11 +95,11 @@ def train_REINFORCE_NN():
     print("----------  end training!  ----------\n")
 
     # 保存模型
-    T.save(agent.approximator.state_dict(), 'REINFORCE_NN_parameters_4_8_10roads_30.pkl')
+    # T.save(agent.approximator.state_dict(), 'REINFORCE_NN_parameters_4_8_10roads.pkl')
 
 
 
-train_REINFORCE_NN()
+train_NO_TOLLS()
 
 
 

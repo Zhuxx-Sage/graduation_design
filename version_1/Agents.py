@@ -18,8 +18,8 @@ class approximator(nn.Module):
     def __init__(self, paras):
         super(approximator, self).__init__()
         # 定义层
-        self.num_inputs = paras['num_state']   # 输入有40维
-        self.num_outputs = paras['num_action']  # 输出有input_dim10维
+        self.num_inputs = paras['num_state']  # 输入有40维
+        self.num_outputs = paras['num_action']  # 输出有input_dim 10维
         self.alpha_policy = paras['alpha_policy']
 
         self.l1 = nn.Linear(self.num_inputs, 36)  # （10 * 4， 36）
@@ -34,9 +34,9 @@ class approximator(nn.Module):
     def forward(self, x):
         x = T.Tensor(x)
         # x = x.view(1, 40)
-        x = F.tanh(self.l1(x))
-        x = F.tanh(self.l2(x))
-        mu = F.tanh(self.l3(x))
+        x = T.tanh(self.l1(x))
+        x = T.tanh(self.l2(x))
+        mu = T.tanh(self.l3(x))
         # mu = self.l3(x)
         # sigma = T.exp(self.l4(x))
         # return mu, sigma
@@ -74,9 +74,8 @@ class REINFORCE_NN(object):
         return log_density.sum(1, keepdim=True)
 
     def get_returns(self, rewards):
-
-
-        G = T.from_numpy(np.array([sum([rewards[k] * (self.gamma ** (k - t - 1)) for k in range(t + 1, len(rewards))]) for t in
+        G = T.from_numpy(
+            np.array([sum([rewards[k] * (self.gamma ** (k - t - 1)) for k in range(t + 1, len(rewards))]) for t in
                       range(len(rewards))]))
 
         gammas = T.from_numpy(np.array([self.gamma ** t for t in range(len(rewards))]))
@@ -114,4 +113,3 @@ class REINFORCE_NN(object):
         returns = self.get_returns(rewards)
         self.train(returns, states, actions)
         return returns
-

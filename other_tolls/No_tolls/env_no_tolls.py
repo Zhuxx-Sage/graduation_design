@@ -11,17 +11,21 @@ import random
 import math
 from version_1.utils import Graph, Path, Edge
 
+
+
 FIXED_ROAD_LENGTH = 3  # km
 
 
 # BPR模型的参数
 
 
-class TrafficEnvironment:
+
+
+class TrafficEnvironment_NO_TOOLS:
     def __init__(self,
                  road_network: Graph,
-                 min_action=0,
-                 max_action=6,
+                 # min_action=0,
+                 # max_action=6,
                  # action_limit=6,
                  control_time=6,  # 单位小时
                  period_time=3,  # 单位分钟
@@ -45,27 +49,27 @@ class TrafficEnvironment:
         self.B = 4
         self.t = 1
         self.state_matrix = None
-        self.action_vector = None
+        # self.action_vector = None
         # self.reward = np.zeros((self.edges_num, self.zones_num), dtype=int)
-        self.low_bound_action = min_action
-        self.upper_bound_action = max_action
+        # self.low_bound_action = min_action
+        # self.upper_bound_action = max_action
 
     def reset(self):
         self.create_state_matrix()
-        self.create_action_vector()
+        # self.create_action_vector()
         self.t = 1
         return self.state_matrix
+
 
     # 初始化状态矩阵
     def create_state_matrix(self):
         # zones,  # 目的地数目
         # edges,  # 总的路数
-        self.state_matrix = np.random.randint(int(0.5 * self.capacity_of_road / 4),
-                                              int(0.7 * self.capacity_of_road / 4), [self.edges_num, self.zones_num])
+        self.state_matrix = np.random.randint(int(0.5*self.capacity_of_road/4), int(0.7*self.capacity_of_road/4), [self.edges_num, self.zones_num])
 
-    # 创建初始行为向量
-    def create_action_vector(self):
-        self.action_vector = np.random.randint(0, 6, self.edges_num)
+    # # 创建初始行为向量
+    # def create_action_vector(self):
+    #     self.action_vector =  np.random.randint(0, 6, self.edges_num)
 
     def travel_time(self,
                     road_e: Edge,  # 此变量用来填充state_matrix的一维坐标，Edge；{id，start，end}
@@ -75,8 +79,7 @@ class TrafficEnvironment:
         # print(self.state_matrix[road_e.id])
         # print(self.free_flow_speed * (1 + A * (self.state_matrix[road_e.id] / self.capacity_of_road) ** B))
         # print(sum(self.state_matrix[road_e.id]))
-        return self.free_flow_speed * (
-                    1 + self.A * (sum(self.state_matrix[road_e.id]) / self.capacity_of_road) ** self.B)
+        return self.free_flow_speed * (1 + self.A * (sum(self.state_matrix[road_e.id]) / self.capacity_of_road) ** self.B)
 
     # 从i到j的某条路径的cost
     def travel_cost(self,
@@ -85,14 +88,14 @@ class TrafficEnvironment:
         sum = 0
         # destination_index = path.get_dest()
         for e in path.get_path():
-            sum += self.action_vector[0, e] + self.w * self.travel_time(self.edges[e])
+            sum += self.w * self.travel_time(self.edges[e])
         return sum
 
     # 某条路径的traffic demand
     def traffic_demand(self, vi, vj, one_path: Path):
         # 计算单独某条
         # single_path = math.exp(self.w_ * self.travel_cost(one_path))
-        single_path = round(np.exp((-self.w_) * self.travel_cost(one_path)), 8)
+        single_path = np.exp((-self.w_) * self.travel_cost(one_path))
 
         # 计算所有路径
         all_Paths = self.road_network.return_all_path_roads(vi, vj, path=[])
@@ -100,8 +103,7 @@ class TrafficEnvironment:
         for row in all_Paths:
             p = Path(vi, vj, row)
             # sum_all_Paths += math.exp(self.w_ * self.travel_cost(p))
-            sum_all_Paths += round(np.exp((-self.w_) * self.travel_cost(p)), 8)
-
+            sum_all_Paths += np.exp((-self.w_) * self.travel_cost(p))
         if sum_all_Paths == 0:
             resu = 0
         else:
@@ -117,7 +119,7 @@ class TrafficEnvironment:
         return int(self.state_matrix[road_e.id][vj] * self.period_time / self.travel_time(road_e))
 
     # 计算secondary demand
-    def secondery_demand(self,
+    def secondary_demand(self,
                          vi,
                          vj,
                          ):
@@ -130,8 +132,8 @@ class TrafficEnvironment:
     # 计算primary_demand
     # 每条i，j都可以这样计算
     def primary_demand(self):
-        # return int(random.randint(80, 120) * np.exp(-np.power(self.t - 18, 2) / (2 * np.power(30, 2))))
-        return int(random.randint(24,36) * np.exp(-np.power(self.t - 60, 2) / (2 * np.power(30, 2))))
+        return int(random.randint(24, 36) * np.exp(-np.power(self.t - 60, 2) / (2 * np.power(30, 2))))
+        # return int(random.randint(80,120) * np.exp(-np.power(self.t - 18, 2) / (2 * np.power(30, 2))))
 
     # 计算t时段内 进入road_e的车辆数
     def in_road(self,
@@ -141,9 +143,9 @@ class TrafficEnvironment:
         # 以edge的起点
         start = road_e.start
         primary = self.primary_demand()
-        secondary = self.secondery_demand(start, vj)
+        secondary = self.secondary_demand(start, vj)
         # 所有以road_e的起点为终点的路径
-        # 从vi到vi的所有路径
+        # 从vi到vj的所有路径
         all_Paths = self.road_network.return_all_path_roads(start, vj)
         in_road_cars = 0
         # 找到包含road_e的path
@@ -156,9 +158,9 @@ class TrafficEnvironment:
 
     #
     def step(self,
-             action_vector,  # 传入新的收费值
+             # action_vector,  # 传入新的收费值
              ):
-        self.action_vector = action_vector
+        # self.action_vector = action_vector
         next_state_matrix = np.zeros((self.edges_num, self.zones_num), dtype=int)
         rewards = 0
         is_done = False
@@ -181,12 +183,16 @@ class TrafficEnvironment:
         # 计算奖励
         for e in self.edges:
             end_point = e.end
-            rewards += (self.state_matrix[e.id][end_point] * self.period_time) / (self.free_flow_speed * (
-                        1 + self.A * (sum(self.state_matrix[e.id]) / self.capacity_of_road) ** self.B))
+            rewards += (self.state_matrix[e.id][end_point] * self.period_time) / (self.free_flow_speed * (1 + self.A * (sum(self.state_matrix[e.id]) / self.capacity_of_road) ** self.B))
         rewards = int(rewards)
 
         self.t += 1
-        if self.t == self.control_time / self.period_time + 1:
+        if self.t == (self.control_time / self.period_time + 1):
             is_done = True
 
         return self.state_matrix, rewards, is_done, info
+
+
+
+
+
